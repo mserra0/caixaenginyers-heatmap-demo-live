@@ -15,3 +15,5 @@ streamlit run app/streamlit_app.py
 - [data/population.csv](data/population.csv): Población por municipio (total/hombres/mujeres) en 2023.
 - [data/age_population.csv](data/age_population.csv): Población por municipio y por edades en 2013.
 - [data/rent.csv](data/rent.csv): Precio de alquiler por distrito de municipio (hacer average) en 2024.
+- [data/household_municipality.csv](data/household_municipality.csv): Renta por municipio en 2023.
+- 
