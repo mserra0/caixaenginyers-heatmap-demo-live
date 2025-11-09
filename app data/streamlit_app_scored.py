@@ -46,7 +46,7 @@ def load_scored_data(data_path=None):
             data_path = Path(ARGS.data_path)
         else:
             # Default path
-            data_path = Path(__file__).parent.parent / "data" / "municipalities_scored_clean.csv"
+            data_path = Path(__file__).parent.parent / "out" / "result.csv"
     
     if not data_path.exists():
         st.error(f"Scored data not found at {data_path}")
