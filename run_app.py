@@ -7,6 +7,7 @@ import subprocess
 import sys
 import argparse
 from pathlib import Path
+import os
 
 def main():
     parser = argparse.ArgumentParser(description="Launch the Streamlit app")
@@ -32,6 +33,10 @@ def main():
     print("Press Ctrl+C to stop the server\n")
     
     try:
+        # Ensure Streamlit's file watcher is disabled at the environment level
+        # This protects against hosts that ignore CLI flags or use a different runner.
+        os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+
         cmd = [
             "streamlit", "run", str(app_path),
             "--server.headless", "true",
