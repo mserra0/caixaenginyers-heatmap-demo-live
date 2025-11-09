@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from time import time
 import argparse as ap
+from clean_and_normalize_scores import check_and_fix_data_quality
 
 from scores import calculate_economic_score, calculate_social_score, calculate_total_score, run_pca_scoring 
 
@@ -268,4 +269,5 @@ if __name__ == "__main__":
     parser.add_argument("--data-path", type=str, required=True, help="Path to the input data CSV file.")
     parser.add_argument("--out-path", type=str, required=True, help="Path to save the output scored CSV file.")
     args = parser.parse_args()
-    main(data_path=args.data_path, output_path=args.out_path)
+    main(data_path=args.data_path, output_path="out/temp.csv")
+    check_and_fix_data_quality(input_path="out/temp.csv", output_path=args.out_path)

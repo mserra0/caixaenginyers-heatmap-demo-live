@@ -8,8 +8,6 @@ This script identifies and fixes data quality issues like:
 """
 
 import pandas as pd
-import numpy as np
-from pathlib import Path
 import argparse as ap
 
 
@@ -45,14 +43,24 @@ def check_and_fix_data_quality(input_path, output_path):
     if 'perc_under_35' in df.columns:
         df['perc_under_35'] = df['perc_under_35'].clip(0, 0.5)
     
-    # # 2. Check for duplicate municipalities
-    # print("\nChecking for duplicates...")
-    # duplicates = df[df.duplicated(subset=['municipio', 'provincia'], keep=False)]
-    # if len(duplicates) > 0:
-    #     print(f"  Found {len(duplicates)} duplicate records, keeping first occurrence")
-    #     df = df.drop_duplicates(subset=['municipio', 'provincia'], keep='first')
-    # else:
-    #     print("  No duplicates found")
+    # 2. Check for duplicate municipalities and keep the one with highest population
+    print("\nChecking for duplicate municipalities...")
+    if 'municipio' in df.columns:
+        dup_count = int(df.duplicated(subset=['municipio'], keep=False).sum())
+        if dup_count > 0:
+            print(f"  Found {dup_count} duplicate rows (by municipio). Keeping highest 'poblacion_total' per municipio.")
+            # Ensure poblacion_total is numeric for reliable sorting
+            if 'poblacion_total' in df.columns:
+                df['poblacion_total'] = pd.to_numeric(df['poblacion_total'], errors='coerce')
+            else:
+                # If not present, create a zero column so sorting is deterministic
+                df['poblacion_total'] = 0
+            df = df.sort_values(by=['municipio', 'poblacion_total'], ascending=[True, False])
+            before = len(df)
+            df = df.drop_duplicates(subset=['municipio'], keep='first')
+            print(f"  Removed {before - len(df)} rows after deduplication.")
+        else:
+            print("  No duplicates found by municipio.")
     
     # 3. Check for extreme outliers in scores
     print("\nChecking for extreme outliers...")
@@ -115,7 +123,7 @@ def check_and_fix_data_quality(input_path, output_path):
     print("="*80)
     print(f"Total municipalities: {len(df)}")
     # print(f"Provinces covered: {df['provincia'].nunique()}")
-    print(f"\nScore Statistics (Normalized 0-100):")
+    print("\nScore Statistics (Normalized 0-100):")
     print(df[['economic_score_normalized', 'social_score_normalized', 'total_score_alpha_50_normalized']].describe().round(2))
     
     print("\nTop 10 by Economic Score:")

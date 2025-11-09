@@ -45,3 +45,9 @@ python utils/impute_from_neighbors.py
 python utils/drop_rows_with_nan.py
 ```
 Genera un dataset merged_es_dropna.csv.
+
+## Visualizacíon en la app
+```python
+python scripts/apply_scoring_pipeline.py --data-path data/merged_es_dropna.csv --out-path out/test.csv
+python run_app.py --data-path out/test.csv
+```

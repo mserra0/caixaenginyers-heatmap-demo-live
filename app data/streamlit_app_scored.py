@@ -119,9 +119,16 @@ def merge_geospatial(df, df_geo):
     df['municipio_normalized'] = df['municipio'].str.strip().str.lower()
     df_geo['name_normalized'] = df_geo['name'].str.strip().str.lower()
     
+    # Collapse multiple GeoJSON features with the same name to a single row (mean coordinates)
+    df_geo_collapsed = (
+        df_geo
+        .groupby('name_normalized', as_index=False)
+        .agg({'lat': 'mean', 'lon': 'mean'})
+    )
+    
     # Merge on normalized names
     df_merged = df.merge(
-        df_geo[['name_normalized', 'lat', 'lon']],
+        df_geo_collapsed[['name_normalized', 'lat', 'lon']],
         left_on='municipio_normalized',
         right_on='name_normalized',
         how='left'
@@ -160,6 +167,9 @@ def merge_geospatial(df, df_geo):
     
     # Clean up temporary columns
     df_merged = df_merged.drop(columns=['municipio_normalized', 'name_normalized', 'municipio_alt'], errors='ignore')
+    
+    # Ensure uniqueness by municipio after merge (avoid one-to-many explosions)
+    df_merged = df_merged.drop_duplicates(subset=['municipio'], keep='first')
     
     final_matched = (df_merged['lat'] != 40.4168).sum()
     st.info(f"📍 Mapped coordinates for {final_matched}/{total} municipalities ({final_matched/total*100:.1f}%)")
@@ -450,8 +460,10 @@ else:
     
     scoring_method = "Sophisticated Scoring"
 
-# Sort by score
-df_sorted = df_filtered.sort_values('current_score', ascending=False)
+# Sort by score and ensure unique municipalities (keep best-scoring row)
+df_filtered = df_filtered.sort_values('current_score', ascending=False)
+df_filtered = df_filtered.drop_duplicates(subset=['municipio'], keep='first')
+df_sorted = df_filtered
 
 # ===========================================
 # METRICS ROW
