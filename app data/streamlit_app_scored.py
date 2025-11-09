@@ -490,33 +490,80 @@ st.divider()
 
 st.subheader("🗺️ Interactive Heatmap")
 
+# Visualization mode selector
+viz_mode = st.radio(
+    "Visualization Style:",
+    options=["Continuous Heatmap", "Points Only", "Heatmap + Points"],
+    index=2,
+    horizontal=True,
+    help="Choose how to display the data on the map"
+)
+
 # Prepare data for visualization
 df_map = df_sorted.head(min(1000, len(df_sorted))).copy()  # Limit for performance
 df_map['color'] = create_color_scale(df_map['current_score'])
 df_map['size'] = radius
+df_map['weight'] = df_map['current_score']  # For heatmap intensity
 
 # Top locations for highlighting
 df_top_map = df_sorted.head(top_n).copy()
 df_top_map['size'] = radius * 1.5
+df_top_map['weight'] = df_top_map['current_score']
 
 # Calculate map center
 center_lat = df_map['lat'].mean()
 center_lon = df_map['lon'].mean()
 
-# Create layers
-scatter_layer = pdk.Layer(
-    "ScatterplotLayer",
-    data=df_map,
-    get_position='[lon, lat]',
-    get_color='color',
-    get_radius='size',
-    pickable=True,
-    opacity=0.6,
-    stroked=True,
-    filled=True,
-    line_width_min_pixels=1,
-)
+# Create layers based on visualization mode
+layers = []
 
+# Continuous heatmap layer using HexagonLayer
+if viz_mode in ["Continuous Heatmap", "Heatmap + Points"]:
+    heatmap_layer = pdk.Layer(
+        "HexagonLayer",
+        data=df_map,
+        get_position='[lon, lat]',
+        get_weight='weight',
+        radius=5000,  # 5km hexagon radius
+        elevation_scale=50,
+        elevation_range=[0, 1000],
+        extruded=True,
+        coverage=0.95,
+        pickable=True,
+        auto_highlight=True,
+        color_range=[
+            [65, 182, 196],    # Light blue (low)
+            [127, 205, 187],   # Teal
+            [199, 233, 180],   # Light green
+            [237, 248, 177],   # Yellow-green
+            [255, 255, 204],   # Light yellow
+            [255, 237, 160],   # Yellow
+            [254, 217, 118],   # Orange-yellow
+            [254, 178, 76],    # Orange
+            [253, 141, 60],    # Red-orange
+            [240, 59, 32],     # Red (high)
+        ],
+        opacity=0.7 if viz_mode == "Heatmap + Points" else 0.8,
+    )
+    layers.append(heatmap_layer)
+
+# Individual points layer
+if viz_mode in ["Points Only", "Heatmap + Points"]:
+    scatter_layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=df_map,
+        get_position='[lon, lat]',
+        get_color='color',
+        get_radius='size',
+        pickable=True,
+        opacity=0.4 if viz_mode == "Heatmap + Points" else 0.6,
+        stroked=True,
+        filled=True,
+        line_width_min_pixels=1,
+    )
+    layers.append(scatter_layer)
+
+# Top locations layer (always show as gold stars)
 top_layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_top_map,
@@ -529,6 +576,7 @@ top_layer = pdk.Layer(
     filled=True,
     line_width_min_pixels=2,
 )
+layers.append(top_layer)
 
 # Tooltip
 provincia_line = "<b>Province:</b> {provincia}<br/>" if 'provincia' in df_filtered.columns else ""
@@ -551,27 +599,38 @@ tooltip = {
 }
 
 # Create deck
+view_pitch = 45 if viz_mode == "Continuous Heatmap" else 0
 deck = pdk.Deck(
     initial_view_state=pdk.ViewState(
         latitude=center_lat,
         longitude=center_lon,
         zoom=5.5,
-        pitch=0
+        pitch=view_pitch,
+        bearing=0
     ),
     map_provider="carto",
     map_style="light",
-    layers=[scatter_layer, top_layer],
+    layers=layers,
     tooltip=tooltip
 )
 
 st.pydeck_chart(deck, use_container_width=True)
 
 # Legend
-st.markdown("""
-**Map Legend:**
-- 🔵 Blue → Low Score | 🟡 Yellow → Medium Score | 🔴 Red → High Score
-- ⭐ Gold circles = Top {} locations
-""".format(top_n))
+if viz_mode == "Continuous Heatmap":
+    st.markdown("""
+    **Map Legend:**
+    - 🟦 Blue/Teal → Low Score | 🟨 Yellow → Medium Score | 🟥 Red → High Score
+    - � Hexagon height represents score density
+    - ⭐ Gold circles = Top {} locations
+    - 💡 Tip: Rotate the map by holding Ctrl (Cmd on Mac) and dragging
+    """.format(top_n))
+else:
+    st.markdown("""
+    **Map Legend:**
+    - �🔵 Blue → Low Score | 🟡 Yellow → Medium Score | 🔴 Red → High Score
+    - ⭐ Gold circles = Top {} locations
+    """.format(top_n))
 
 st.divider()
 
