@@ -143,9 +143,12 @@ def load_household_income() -> pd.DataFrame:
 def load_banks() -> pd.DataFrame:
     banks = pd.read_csv("data/banks-by-population.csv")
     banks["municipio_key"] = banks["Municipality"].apply(normalize_municipality)
-    counts = banks.groupby("municipio_key", as_index=False).size()
-    counts = counts.rename(columns={"size": "num_bancos"})
-    return counts
+    grouped = banks.groupby("municipio_key", as_index=False).agg(
+        num_bancos=("Municipality", "size"),
+        longitud_bancos=("Longitude", "mean"),
+        latitud_bancos=("Latitude", "mean"),
+    )
+    return grouped
 
 
 def main(out_csv: str = "data/merged_es.csv"):
@@ -184,6 +187,8 @@ def main(out_csv: str = "data/merged_es.csv"):
         "alquiler_m2_colectiva",
         "alquiler_m2_unifamiliar",
         "num_bancos",
+        "longitud_bancos",
+        "latitud_bancos",
     ]
 
     # Ensure columns exist even if missing from sources
@@ -193,8 +198,16 @@ def main(out_csv: str = "data/merged_es.csv"):
 
     out = merged[["municipio_key"] + desired_order].copy()
 
-    # Replace NaNs with "Unknown" across all non-key output columns
+    # For bank-related columns, fill missing with 0 instead of "Unknown"
+    zero_fill_cols = ["num_bancos", "longitud_bancos", "latitud_bancos"]
+    for c in zero_fill_cols:
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0)
+
+    # Replace NaNs with "Unknown" across all other non-key output columns
     for c in desired_order:
+        if c in zero_fill_cols:
+            continue
         out[c] = out[c].where(out[c].notna(), "Unknown")
 
     # Drop key from final output
