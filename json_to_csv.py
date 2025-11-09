@@ -2,7 +2,7 @@ import json
 import csv
 
 # Path to your GeoJSON file
-geojson_file = '/media/eric/D/repos/caixaenginyers-heatmap-demo/data/banks-by-population.geojson'
+geojson_file = '/media/eric/D/repos/caixaenginyers-heatmap-demo/data/citylocation.geojson'
 # Output CSV file
 csv_file = '/media/eric/D/repos/caixaenginyers-heatmap-demo/data/banks-by-population.csv'
 
@@ -21,26 +21,22 @@ with open(csv_file, 'w', newline='') as f:
         properties = feature['properties']
         geometry = feature['geometry']
 
-        # Only keep features that are banks
-        if properties.get('amenity') != 'bank':
-            continue
+        # New dataset (citylocation.geojson) lists municipalities/places, not bank amenities.
+        # Derive municipality name from available keys.
 
         # Municipality candidates (best-effort from available address fields)
         municipality = (
-            properties.get('addr:city')
+            properties.get('idee:name')
+            or properties.get('name')
+            or properties.get('addr:city')
             or properties.get('addr:town')
             or properties.get('addr:village')
             or properties.get('addr:hamlet')
             or 'Unknown'
         )
 
-        # Bank name candidates
-        bank = (
-            properties.get('name')
-            or properties.get('operator')
-            or properties.get('brand')
-            or 'Unknown'
-        )
+        # Bank name is not present in this dataset; use municipality as a placeholder
+        bank = municipality
 
         # Extract representative coordinates depending on geometry type
         longitude = 'Unknown'
@@ -75,7 +71,6 @@ with open(csv_file, 'w', newline='') as f:
         # Skip rows with any Unknowns or non-numeric coordinates
         if (
             municipality == 'Unknown'
-            or bank == 'Unknown'
             or longitude == 'Unknown'
             or latitude == 'Unknown'
         ):

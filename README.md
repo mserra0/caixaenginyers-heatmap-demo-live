@@ -11,7 +11,9 @@ https://www.perplexity.ai/search/i-am-a-data-scientist-competin-dQMr4RjaQzKpvCJN
 pip install -r requirements.txt
 streamlit run app/streamlit_app.py
 ```
-## Datasets
+
+## Proceso
+### Descargar Datasets
 - [data/population.csv](data/population.csv): Población por municipio (total/hombres/mujeres) en 2023.
 	- NAMEUNIT: Nombre del municipio.
 	- POB21: Población total.
@@ -34,3 +36,12 @@ streamlit run app/streamlit_app.py
 	- Banks: Número de oficinas bancarias.
 	- Longitude
 	- Latitude
+
+### Limpieza y Preprocesamiento
+```python
+python json_to_csv.py
+python utils/merge_all.py
+python utils/impute_from_neighbors.py
+python utils/drop_rows_with_nan.py
+```
+Genera un dataset merged_es_dropna.csv.
