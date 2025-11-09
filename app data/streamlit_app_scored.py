@@ -33,13 +33,38 @@ def parse_arguments():
 # Parse arguments at module level
 ARGS = parse_arguments()
 
+
+# Lightweight preview loader to populate UI controls quickly
+@st.cache_data
+def preview_scored_data(data_path=None, nrows=200):
+    """Read a small sample of the scored CSV to populate UI controls quickly."""
+    if data_path is None:
+        if ARGS.data_path:
+            data_path = Path(ARGS.data_path)
+        else:
+            data_path = Path(__file__).parent.parent / "out" / "result.csv"
+
+    if not Path(data_path).exists():
+        return pd.DataFrame()
+
+    try:
+        dfp = pd.read_csv(data_path, nrows=nrows)
+        return dfp
+    except Exception:
+        return pd.DataFrame()
+
 # ===========================================
 # DATA LOADING
 # ===========================================
 
 @st.cache_data
-def load_scored_data(data_path=None):
-    """Load the pre-scored municipality data."""
+def load_scored_data(data_path=None, force_full=False, sample_n=5000):
+    """Load the pre-scored municipality data.
+
+    - If the file is large and force_full is False, this will read only `sample_n` rows
+      to speed up UI startup.
+    - `force_full=True` will always attempt to load the entire dataset.
+    """
     # Use provided path or default
     if data_path is None:
         if ARGS.data_path:
@@ -47,13 +72,27 @@ def load_scored_data(data_path=None):
         else:
             # Default path
             data_path = Path(__file__).parent.parent / "out" / "result.csv"
-    
+
+    data_path = Path(data_path)
+
     if not data_path.exists():
         st.error(f"Scored data not found at {data_path}")
         st.info("Run: `python scripts/apply_scoring_pipeline.py` to generate scores")
         st.stop()
-    
-    df = pd.read_csv(data_path)
+
+    # If the file is large, default to sampling unless force_full is True
+    try:
+        file_size = data_path.stat().st_size
+    except Exception:
+        file_size = 0
+
+    # If file > 50 MB and not forced, read only a sample to speed up startup
+    if file_size > 50 * 1024 * 1024 and not force_full:
+        df = pd.read_csv(data_path, nrows=sample_n)
+        st.warning(f"Large dataset detected ({file_size/1024/1024:.1f} MB) — loaded a {len(df)}-row sample. Click 'Load full dataset' in the sidebar to load everything.")
+    else:
+        df = pd.read_csv(data_path)
+
     return df
 
 
@@ -256,13 +295,166 @@ st.title("🏦 Caixa Enginyers - Branch Location Optimizer")
 st.markdown("**Interactive heatmap for optimal bank branch placement in Spain**")
 st.caption("Powered by sophisticated Economic and Social Scoring algorithms with sigmoid market opportunity modeling")
 
-# Load data
-with st.spinner("Loading scored municipality data..."):
-    df = load_scored_data()
-    df_geo = load_geospatial_data()
-    df = merge_geospatial(df, df_geo)
+# Quick preview to populate sidebar controls without loading the full dataset
+preview_df = preview_scored_data()
 
-st.success(f"✅ Loaded {len(df)} municipalities with scoring data")
+if 'force_full_load' not in st.session_state:
+    st.session_state['force_full_load'] = False
+
+# ===========================================
+# SIDEBAR - MAIN CONTROLS
+# (placed before heavy load so user can opt for fast/full)
+# ===========================================
+
+with st.sidebar:
+    st.header("⚡ Load Options")
+    st.markdown("Load a fast sample by default to speed up the UI. Use 'Load full dataset' to force full read.")
+    sample_n = st.number_input("Sample size for fast load", min_value=500, max_value=200000, value=5000, step=500)
+    if st.button("Load full dataset (may be slow)"):
+        st.session_state['force_full_load'] = True
+    if st.session_state['force_full_load']:
+        st.success("Full dataset will be loaded (this may take longer)")
+
+    st.divider()
+
+    st.header("🎚️ Strategy Control")
+    
+    # Scoring method toggle
+    st.markdown("### **Scoring Method**")
+    use_pca = st.toggle(
+        "🔬 Use PCA Components (Experimental)",
+        value=False,
+        help="Toggle to use raw PCA components (PC1=Economic, PC2=Social) instead of sophisticated scoring function"
+    )
+    
+    if use_pca:
+        st.info("💡 Using normalized PCA components for real-time calculation")
+    else:
+        st.info("✨ Using sophisticated scoring function with sigmoid modeling")
+    
+    st.divider()
+    
+    # THE KEY CONTROL: Alpha slider
+    st.markdown("### **Trade-off: Economic ↔ Social**")
+    alpha = st.slider(
+        "Strategic Focus",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.5,
+        step=0.05,
+        help="0.0 = Pure Social Impact | 0.5 = Balanced | 1.0 = Pure Economic ROI"
+    )
+    
+    # Visual indicator
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Social Weight", f"{(1-alpha)*100:.0f}%")
+    with col2:
+        st.metric("Economic Weight", f"{alpha*100:.0f}%")
+    
+    # Strategy label
+    if alpha <= 0.2:
+        strategy_label = "🤝 **Pure Social Impact**"
+        strategy_color = "blue"
+    elif alpha <= 0.4:
+        strategy_label = "🌱 **Social-Leaning**"
+        strategy_color = "lightblue"
+    elif alpha <= 0.6:
+        strategy_label = "⚖️ **Balanced** (Recommended)"
+        strategy_color = "green"
+    elif alpha <= 0.8:
+        strategy_label = "💼 **Economic-Leaning**"
+        strategy_color = "orange"
+    else:
+        strategy_label = "💰 **Pure Economic ROI**"
+        strategy_color = "red"
+    
+    st.markdown(f"**Current Strategy:** {strategy_label}")
+    
+    st.divider()
+    
+    # ===========================================
+    # FILTERS
+    # ===========================================
+    
+    st.header("🔍 Filters")
+    
+    with st.expander("Population Range", expanded=False):
+        min_pop = st.number_input(
+            "Minimum Population",
+            min_value=0,
+            max_value=100000,
+            value=0,
+            step=1000
+        )
+        max_pop = st.number_input(
+            "Maximum Population",
+            min_value=1000,
+            max_value=1000000,
+            value=1000000,
+            step=10000
+        )
+    
+    with st.expander("Geographic Filters", expanded=False):
+        if not preview_df.empty and 'provincia' in preview_df.columns:
+            all_provinces = sorted(preview_df['provincia'].dropna().unique())
+            selected_provinces = st.multiselect(
+                "Select Provinces (empty = all)",
+                options=all_provinces,
+                default=[]
+            )
+        else:
+            st.info("Province data not available in preview sample — select provinces after full load")
+            selected_provinces = []
+    
+    with st.expander("Market Conditions", expanded=False):
+        max_bank_sat = st.slider(
+            "Max Bank Saturation",
+            min_value=0.0,
+            max_value=1.0,
+            value=1.0,
+            step=0.1,
+            help="Filter out municipalities with too many banks"
+        )
+    
+    # Apply filters
+    filters = {
+        'min_population': min_pop,
+        'max_population': max_pop,
+        'provinces': selected_provinces,
+        'max_bank_saturation': max_bank_sat
+    }
+    
+    st.divider()
+    
+    # ===========================================
+    # VISUALIZATION SETTINGS
+    # ===========================================
+    
+    st.header("🎨 Visualization")
+    
+    top_n = st.slider(
+        "Show Top N Locations",
+        min_value=5,
+        max_value=100,
+        value=20,
+        step=5
+    )
+    
+    radius = st.slider(
+        "Point Size",
+        min_value=50,
+        max_value=500,
+        value=150,
+        step=25
+    )
+
+# Load data (respect user's load choice)
+with st.spinner("Loading scored municipality data..."):
+    df = load_scored_data(force_full=st.session_state.get('force_full_load', False), sample_n=sample_n)
+    df_geo = load_geospatial_data()
+
+st.success(f"✅ Loaded {len(df)} municipalities with scoring data (geocoding is deferred to map subsets)")
 
 # ===========================================
 # SIDEBAR - MAIN CONTROLS
@@ -574,9 +766,12 @@ else:
     })
     gradient_col = 'Total Score'
 
-styled_df = df_top.style.format(format_dict).background_gradient(subset=[gradient_col], cmap='RdYlGn')
-
-st.dataframe(styled_df, use_container_width=True, height=400)
+# Lightweight table rendering (Styler can be heavyweight for large UIs)
+df_top_display = df_top.copy()
+# Round numeric columns for display
+for c in df_top_display.select_dtypes(include=[float]).columns:
+    df_top_display[c] = df_top_display[c].round(1)
+st.dataframe(df_top_display, use_container_width=True, height=400)
 
 # Download button
 csv = df_top.to_csv(index=False).encode('utf-8')
@@ -606,13 +801,18 @@ viz_mode = st.radio(
 )
 
 # Prepare data for visualization
-df_map = df_sorted.head(min(1000, len(df_sorted))).copy()  # Limit for performance
+# Only geocode a small subset used in the map to avoid expensive full merges
+map_limit = min(1000, len(df_sorted))
+df_map = df_sorted.head(map_limit).copy()
+# Merge geospatial info only for this subset (much cheaper than full merge)
+df_map = merge_geospatial(df_map, df_geo)
 df_map['color'] = create_color_scale(df_map['current_score'])
 df_map['size'] = radius
 df_map['weight'] = df_map['current_score']  # For heatmap intensity
 
-# Top locations for highlighting
+# Top locations for highlighting (also geocoded)
 df_top_map = df_sorted.head(top_n).copy()
+df_top_map = merge_geospatial(df_top_map, df_geo)
 df_top_map['size'] = radius * 1.5
 df_top_map['weight'] = df_top_map['current_score']
 
