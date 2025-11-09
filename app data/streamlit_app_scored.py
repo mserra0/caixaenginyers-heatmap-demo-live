@@ -444,9 +444,22 @@ if use_pca:
 else:
     # Use sophisticated scoring function with real-time alpha calculation
     # Check if required columns exist
-    if 'economic_score_normalized' not in df_filtered.columns or 'social_score_normalized' not in df_filtered.columns:
-        st.error("❌ Normalized economic/social scores not found in data. Please run the scoring pipeline first.")
+    if 'economic_score' not in df_filtered.columns or 'social_score' not in df_filtered.columns:
+        st.error("❌ Economic/social scores not found in data. Please run the scoring pipeline first.")
         st.stop()
+    
+    # Normalize economic and social scores to 0-100 scale
+    econ_min = df_filtered['economic_score'].min()
+    econ_max = df_filtered['economic_score'].max()
+    social_min = df_filtered['social_score'].min()
+    social_max = df_filtered['social_score'].max()
+    
+    # Avoid division by zero
+    econ_range = econ_max - econ_min if econ_max != econ_min else 1
+    social_range = social_max - social_min if social_max != social_min else 1
+    
+    df_filtered['economic_score_normalized'] = ((df_filtered['economic_score'] - econ_min) / econ_range) * 100
+    df_filtered['social_score_normalized'] = ((df_filtered['social_score'] - social_min) / social_range) * 100
     
     # Calculate combined sophisticated score based on alpha in real-time
     df_filtered['current_score'] = (

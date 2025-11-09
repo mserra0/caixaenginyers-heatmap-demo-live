@@ -12,4 +12,5 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "pyarrow>=22.0.0",
     "streamlit>=1.50.0",
+    "plotly>=6.4.0",
 ]
