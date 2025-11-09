@@ -1,0 +1,4 @@
+[server]
+# Disable the inotify/watchdog file watcher to avoid "inotify watch limit reached" on Linux hosts
+# Alternatives: use "poll" if you want automatic reloads without inotify, but that can cost CPU.
+fileWatcherType = "none"
