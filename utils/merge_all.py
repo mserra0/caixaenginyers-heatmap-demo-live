@@ -96,14 +96,16 @@ def load_age_population() -> pd.DataFrame:
         name_col = ages.columns[1]
     ages["municipio_key"] = ages[name_col].apply(normalize_municipality)
 
-    # Sum 65+ → PAD_2C16..PAD_2C20; <65 → PAD_2C03..PAD_2C15
+    # Sum 65+ → PAD_2C16..PAD_2C20; <65 → PAD_2C03..PAD_2C15; <35 → PAD_2C03..PAD_2C09
     cols_65_plus = [f"PAD_2_MU_2018_PAD_2C{n:02d}" for n in range(16, 21)]
     cols_under_65 = [f"PAD_2_MU_2018_PAD_2C{n:02d}" for n in range(3, 16)]
+    cols_under_35 = [f"PAD_2_MU_2018_PAD_2C{n:02d}" for n in range(3, 10)]
 
     ages_out = pd.DataFrame({
         "municipio_key": ages["municipio_key"],
         "poblacion_65_mas": sum_columns(ages, cols_65_plus),
         "poblacion_menor_65": sum_columns(ages, cols_under_65),
+        "poblacion_menor_35": sum_columns(ages, cols_under_35),
     })
     # Some files may contain multiple entries per municipality; aggregate by sum
     ages_out = ages_out.groupby("municipio_key", as_index=False).sum(numeric_only=True)
@@ -175,6 +177,7 @@ def main(out_csv: str = "data/merged_es.csv"):
         "mujeres",
         "densidad",
         "superficie_km2",
+        "poblacion_menor_35",
         "poblacion_menor_65",
         "poblacion_65_mas",
         "renta_bruta_media",
