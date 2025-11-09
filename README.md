@@ -29,4 +29,8 @@ streamlit run app/streamlit_app.py
 - [data/household_municipality.csv](data/household_municipality.csv): Renta por municipio en 2023.
 	- Name: Nombre del municipio. Formato: "Terrassa-08279"
 	- RENTA BRUTA MEDIA: Renta bruta media anual por hogar en euros.
-
+- [data/banks-by-population.csv](data/banks-by-population.csv): Número de oficinas bancarias por municipio en 2023.
+	- Municipality: Nombre del municipio.
+	- Banks: Número de oficinas bancarias.
+	- Longitude
+	- Latitude
